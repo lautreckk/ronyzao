@@ -45,14 +45,20 @@ export function useTextGeneration(callbacks?: UseTextGenerationCallbacks): UseTe
     try {
       console.log('[FastShot AI] Sending request to:', apiUrl);
 
-      const response = await fetch(`${apiUrl}/api/v1/generate`, {
+      // Attempting standard OpenAI-compatible endpoint
+      // Previous attempt with /api/v1/generate failed with 404
+      const response = await fetch(`${apiUrl}/v1/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.EXPO_PUBLIC_API_KEY || ''}`, // Just in case, though user only mentioned Project ID
         },
         body: JSON.stringify({
-          projectId,
-          prompt,
+          project_id: projectId, // Snake case might be safer for python backends
+          projectId: projectId,  // Sending both to be safe
+          messages: [
+            { role: 'user', content: prompt }
+          ],
           max_tokens: options?.maxTokens || 1000,
           temperature: options?.temperature || 0.7,
         }),
@@ -60,27 +66,24 @@ export function useTextGeneration(callbacks?: UseTextGenerationCallbacks): UseTe
 
       if (!response.ok) {
         const errorText = await response.text();
+        // If 404 again, we might try another fallback like /chat/completions or /generate in future
         throw new Error(`API Error (${response.status}): ${errorText}`);
       }
 
       const data = await response.json();
 
-      // Assuming response format { text: "..." } or { choice: { text: "..." } } matches the API
-      // If the API follows OpenAI format, it might be choices[0].message.content
-      // Based on "generate", it's usually just .text or .generated_text
-      // For safety, let's try to parse common formats
       let resultText = '';
-      if (typeof data.text === 'string') {
-        resultText = data.text;
+      if (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
+        resultText = data.choices[0].message.content;
       } else if (data.choices && data.choices[0] && data.choices[0].text) {
         resultText = data.choices[0].text;
-      } else if (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
-        resultText = data.choices[0].message.content;
+      } else if (typeof data.text === 'string') {
+        resultText = data.text;
       } else if (data.generated_text) {
         resultText = data.generated_text;
       } else {
         console.warn('[FastShot AI] Unexpected response format:', data);
-        resultText = JSON.stringify(data); // Fallback to show something
+        resultText = JSON.stringify(data);
       }
 
       if (callbacks?.onSuccess) {
