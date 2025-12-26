@@ -47,8 +47,7 @@
       ]
     ],
     "experiments": {
-      "typedRoutes": true,
-      "baseUrl": "/1de1f56f-4590-4e79-aa09-7ae09e21021a/deadbeef/"
+      "typedRoutes": true
     }
   }
 }
